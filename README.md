@@ -26,45 +26,56 @@ git clone [https://github.com/sapadian/snarky.git](https://github.com/sapadian/s
 cd snarky
 go build -o snarky main.go
 
-### Quick Test (Public Server)
+# Snarky
+
+Secure, self-hosted, ephemeral file sharing from the command line.
+
+---
+
+## 🚀 Quick Test (Public Server)
 
 Try Snarky immediately using the free public instance hosted by Sapadian:
 
 ```bash
 # Send a file
-./snarky send -file secret.txt -host [https://snarkypub.sapadian.com](https://snarkypub.sapadian.com)
+./snarky send -file secret.txt -host https://snarkypub.sapadian.com
 
 # Get a file
-./snarky get -id <ID> -key <KEY> -host [https://snarkypub.sapadian.com](https://snarkypub.sapadian.com)
+./snarky get -id <ID> -key <KEY> -host https://snarkypub.sapadian.com
+```
 
-Server Deployment (FreeBSD)
+---
+
+# 🖥️ Server Deployment (FreeBSD)
+
 Follow these steps to host your own private instance of Snarky.
 
-1. Prerequisites
-A FreeBSD Server (VPS or Physical)
+## 1. Prerequisites
 
-Go 1.21+ installed (pkg install go)
+- A FreeBSD Server (VPS or Physical)  
+- Go 1.21+ installed (`pkg install go`)  
+- Root access  
 
-Root access
+## 2. Build the Daemon
 
-2. Build the Daemon
 Compile the server binary specifically for FreeBSD.
 
-Bash
-
+```bash
 # If building on the server itself:
 go build -o snarky-bsd main.go
 
 # Move to bin directory
 sudo mv snarky-bsd /usr/local/bin/snarky
 sudo chmod +x /usr/local/bin/snarky
-3. Setup the Service (RC.D)
+```
+
+## 3. Setup the Service (RC.D)
+
 Create the service script to manage Snarky as a background daemon.
 
-Create the file: /usr/local/etc/rc.d/snarky
+Create the file: `/usr/local/etc/rc.d/snarky`
 
-Bash
-
+```bash
 #!/bin/sh
 
 # PROVIDE: snarky
@@ -83,7 +94,6 @@ load_rc_config $name
 : ${snarky_group:="nobody"}
 : ${snarky_bind_port:="8080"}
 
-# Pidfile lives in a subdirectory to allow 'nobody' to write to it
 pidfile="/var/run/snarky/${name}.pid"
 procname="/usr/local/bin/snarky"
 command="/usr/sbin/daemon"
@@ -100,91 +110,111 @@ snarky_precmd()
 command_args="-P ${pidfile} -r -f ${procname} server -port ${snarky_bind_port}"
 
 run_rc_command "$1"
-Enable and Start:
+```
 
-Bash
+Enable and start the service:
 
+```bash
 sudo chmod +x /usr/local/etc/rc.d/snarky
 sudo sysrc snarky_enable="YES"
 sudo service snarky start
-🔒 Nginx Reverse Proxy & SSL (HTTPS)
+```
+
+---
+
+# 🔒 Nginx Reverse Proxy & SSL (HTTPS)
+
 It is highly recommended to put Nginx in front of Snarky to handle SSL/TLS.
 
-1. Install Nginx & Certbot
-Bash
+## 1. Install Nginx & Certbot
 
+```bash
 sudo pkg update
 sudo pkg install nginx py311-certbot py311-certbot-nginx
 sudo sysrc nginx_enable="YES"
-2. Configure Nginx
-Edit /usr/local/etc/nginx/nginx.conf. Add this block inside http { ... }:
+```
 
-Nginx
+## 2. Configure Nginx
 
+Edit `/usr/local/etc/nginx/nginx.conf` and add this block inside `http { ... }`:
+
+```nginx
 server {
     listen 80;
-    server_name snarky.yourdomain.com; # <--- CHANGE THIS
+    server_name snarky.yourdomain.com;
 
     location / {
         proxy_pass http://localhost:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        
-        # Increase body size to match Snarky's limit (10MB default)
         client_max_body_size 100M;
     }
 }
-3. Enable SSL (Auto-Cert)
-Run Certbot to automatically fetch a Let's Encrypt certificate and update your Nginx config.
+```
 
-Bash
+## 3. Enable SSL (Auto-Cert)
 
+```bash
 sudo service nginx start
 sudo certbot --nginx -d snarky.yourdomain.com
-Select option "2" to redirect all HTTP traffic to HTTPS.
+```
 
-4. Setup Auto-Renewal
-Add a cron job to renew the certificate automatically.
+Choose the option to redirect all HTTP traffic to HTTPS.
 
-Bash
+## 4. Setup Auto-Renewal
 
+```bash
 sudo crontab -e
+```
 
-# Add this line:
+Add:
+
+```bash
 0 0,12 * * * /usr/local/bin/certbot renew --quiet --deploy-hook "service nginx reload"
-💻 Usage Guide
-Sending a Secret
-The client generates a key locally, encrypts the file, uploads the blob, and gives you the retrieval string.
+```
 
-Bash
+---
 
-snarky send -file ./database_creds.env -host [https://snarky.yourdomain.com](https://snarky.yourdomain.com)
-Output:
+# 💻 Usage Guide
 
-Plaintext
+## Sending a Secret
 
+```bash
+snarky send -file ./database_creds.env -host https://snarky.yourdomain.com
+```
+
+Example output:
+
+```
 [SECURE DROP CREATED]
 ID:  a1b2c3d4-5678...
 KEY: XyZ123_SecretKey...
 
 To retrieve:
-snarky get -id a1b2c3d4... -key XyZ123... -host [https://snarky.yourdomain.com](https://snarky.yourdomain.com)
-Receiving a Secret
-The recipient runs the command provided by the sender. The server deletes the file immediately after this command completes.
+snarky get -id a1b2c3d4... -key XyZ123... -host https://snarky.yourdomain.com
+```
 
-Bash
+## Receiving a Secret
 
+```bash
 # Print to console (for small text)
-snarky get -id <ID> -key <KEY> -host [https://snarky.yourdomain.com](https://snarky.yourdomain.com)
+snarky get -id <ID> -key <KEY> -host https://snarky.yourdomain.com
 
 # Save to file (for binaries/zips)
-snarky get -id <ID> -key <KEY> -host [https://snarky.yourdomain.com](https://snarky.yourdomain.com) > retrieved_file.zip
-📄 License
+snarky get -id <ID> -key <KEY> -host https://snarky.yourdomain.com > retrieved_file.zip
+```
+
+---
+
+# 📄 License
+
 Snarky is licensed under the GNU AGPLv3.
 
 You are free to use and modify this software.
 
 If you host Snarky as a public service, you must make the source code of your version available to users.
 
-Commercial Hosting: Don't want to manage a server? Use our managed instance at Sapadian Cloud ($19/mo).
+Commercial Hosting: Use the managed instance at Sapadian Cloud.
+
+
