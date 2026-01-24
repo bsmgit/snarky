@@ -26,10 +26,6 @@ git clone [https://github.com/sapadian/snarky.git](https://github.com/sapadian/s
 cd snarky
 go build -o snarky main.go
 
-# Snarky
-
-Secure, self-hosted, ephemeral file sharing from the command line.
-
 ---
 
 ## 🚀 Quick Test (Public Server)
