@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# PROVIDE: snarky
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="snarky"
+rcvar="snarky_enable"
+
+load_rc_config $name
+
+: ${snarky_enable:="NO"}
+: ${snarky_user:="nobody"}
+: ${snarky_group:="nobody"}
+: ${snarky_bind_port:="8080"}
+
+pidfile="/var/run/${name}.pid"
+procname="/usr/local/bin/snarky"
+command="/usr/sbin/daemon"
+command_args="-P ${pidfile} -r -f ${procname} server -port ${snarky_bind_port}"
+
+run_rc_command "$1"
