@@ -30,18 +30,25 @@ import (
 const DefaultServer = "http://localhost:8080"
 
 func main() {
-	// Subcommands
-	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
-	serverPort := serverCmd.String("port", "8080", "Port to run daemon on")
+	// --- Subcommands ---
 
+	// Server Command
+	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
+	// We replaced the manual port flag with a config file flag
+	serverConfig := serverCmd.String("config", "snarky.json", "Path to configuration file")
+
+	// Send Command
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	sendFile := sendCmd.String("file", "", "File path to send")
 	sendHost := sendCmd.String("host", DefaultServer, "Snarky Server URL")
 
+	// Get Command
 	getCmd := flag.NewFlagSet("get", flag.ExitOnError)
 	getId := getCmd.String("id", "", "File ID")
 	getKey := getCmd.String("key", "", "Decryption Key")
 	getHost := getCmd.String("host", DefaultServer, "Snarky Server URL")
+
+	// --- Argument Parsing ---
 
 	if len(os.Args) < 2 {
 		printHelp()
@@ -51,7 +58,9 @@ func main() {
 	switch os.Args[1] {
 	case "server":
 		serverCmd.Parse(os.Args[2:])
-		server.Start(*serverPort)
+		// Pass the config file path to the server package
+		server.Start(*serverConfig)
+
 	case "send":
 		sendCmd.Parse(os.Args[2:])
 		if *sendFile == "" {
@@ -59,6 +68,7 @@ func main() {
 			os.Exit(1)
 		}
 		client.Send(*sendHost, *sendFile)
+
 	case "get":
 		getCmd.Parse(os.Args[2:])
 		if *getId == "" || *getKey == "" {
@@ -66,6 +76,7 @@ func main() {
 			os.Exit(1)
 		}
 		client.Get(*getHost, *getId, *getKey)
+
 	default:
 		printHelp()
 		os.Exit(1)
@@ -75,7 +86,7 @@ func main() {
 func printHelp() {
 	fmt.Println("Snarky - Zero Knowledge Dead Drop")
 	fmt.Println("Usage:")
-	fmt.Println("  snarky server [-port 8080]")
+	fmt.Println("  snarky server [-config path/to/snarky.json]")
 	fmt.Println("  snarky send -file <path> [-host http://...]")
 	fmt.Println("  snarky get -id <ID> -key <KEY> [-host http://...]")
 }

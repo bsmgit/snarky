@@ -30,27 +30,33 @@ rcvar="snarky_enable"
 
 load_rc_config $name
 
+# Defaults
 : ${snarky_enable:="NO"}
 : ${snarky_user:="nobody"}
 : ${snarky_group:="nobody"}
-: ${snarky_bind_port:="8080"}
+: ${snarky_config:="/usr/local/etc/snarky.json"}
 
-# 1. Change pidfile to be inside a subdirectory
+# Pidfile handling
+# We use a subdirectory because 'nobody' cannot write directly to /var/run
 pidfile="/var/run/snarky/${name}.pid"
 procname="/usr/local/bin/snarky"
 command="/usr/sbin/daemon"
 
-# 2. Add this pre-start command to create the folder with correct permissions
+# Ensure the directory for the PID file exists and is owned by the user
 start_precmd="snarky_precmd"
 
 snarky_precmd()
 {
-    # Create /var/run/snarky if it doesn't exist
     if [ ! -d "/var/run/snarky" ]; then
         install -d -m 0755 -o ${snarky_user} -g ${snarky_group} /var/run/snarky
     fi
 }
 
-command_args="-P ${pidfile} -r -f ${procname} server -port ${snarky_bind_port}"
+# The actual command arguments:
+# -P: location of the PID file
+# -r: restart the process if it crashes
+# -f: run the target command (procname)
+# -u: run the target command as the specific user (explicitly telling daemon to drop privs)
+command_args="-P ${pidfile} -r -u ${snarky_user} -f ${procname} server -config ${snarky_config}"
 
 run_rc_command "$1"

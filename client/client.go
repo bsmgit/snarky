@@ -21,57 +21,125 @@ package client
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"snarky/crypto"
+	"strings"
 )
 
-func Send(serverURL, filepath string) {
-	data, err := os.ReadFile(filepath)
+// Internal payload to hide filename inside encryption
+type SecurePayload struct {
+	Filename string `json:"filename"`
+	Data     []byte `json:"data"` // Raw file bytes
+}
+
+// TrackedReader tracks progress for the progress bar
+type TrackedReader struct {
+	Reader io.Reader
+	Total  int64
+	Read   int64
+}
+
+func (tr *TrackedReader) Read(p []byte) (n int, err error) {
+	n, err = tr.Reader.Read(p)
+	tr.Read += int64(n)
+	tr.printProgress()
+	return
+}
+
+func (tr *TrackedReader) printProgress() {
+	percent := float64(tr.Read) / float64(tr.Total) * 100
+	barLen := 20
+	filled := int(percent / 100 * float64(barLen))
+	bar := strings.Repeat("=", filled) + strings.Repeat("-", barLen-filled)
+	fmt.Printf("\r\033[36mProgress: [%s] %.2f%%\033[0m", bar, percent)
+	if tr.Read == tr.Total {
+		fmt.Println() // New line on completion
+	}
+}
+
+func Send(serverURL, path string) {
+	// 1. Validation
+	fileInfo, err := os.Stat(path)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		fmt.Printf("Error: File not found: %v\n", err)
 		os.Exit(1)
 	}
 
-	// 1. Generate Key locally
+	// Hard Client-side limit (Soft check before server hard check)
+	// We use 15MB here to account for JSON+Base64 overhead if server limit is ~10MB
+	if fileInfo.Size() > 10*1024*1024 {
+		fmt.Println("Error: File exceeds 10MB limit.")
+		os.Exit(1)
+	}
+
+	fmt.Printf("Reading %s...\n", fileInfo.Name())
+	fileData, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	// 2. Pack Payload (Metadata + Data)
+	payload := SecurePayload{
+		Filename: filepath.Base(path),
+		Data:     fileData,
+	}
+	jsonBytes, _ := json.Marshal(payload)
+
+	// 3. Encrypt
+	fmt.Print("Encrypting... ")
 	key, err := crypto.GenerateKey()
 	if err != nil {
 		panic(err)
 	}
 
-	// 2. Encrypt locally
-	encryptedStr, err := crypto.Encrypt(data, key)
+	// We encrypt the JSON structure
+	encryptedStr, err := crypto.Encrypt(jsonBytes, key)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("Done.")
 
-	// 3. Upload Blob
-	resp, err := http.Post(fmt.Sprintf("%s/upload", serverURL), "text/plain", bytes.NewBufferString(encryptedStr))
+	// 4. Upload with Progress
+	bodyData := []byte(encryptedStr)
+	reader := &TrackedReader{
+		Reader: bytes.NewReader(bodyData),
+		Total:  int64(len(bodyData)),
+	}
+
+	fmt.Println("Uploading to Dead Drop...")
+	resp, err := http.Post(fmt.Sprintf("%s/upload", serverURL), "text/plain", reader)
 	if err != nil {
-		fmt.Printf("Connection error: %v\n", err)
+		fmt.Printf("\nConnection error: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		fmt.Printf("\nServer Error: %s\n", resp.Status)
+		os.Exit(1)
+	}
 
 	uuidBytes, _ := io.ReadAll(resp.Body)
 	uuid := string(uuidBytes)
 	encodedKey := base64.URLEncoding.EncodeToString(key)
 
-	// 4. Print Result
+	// 5. Output Keys
 	fmt.Println("\n[SECURE DROP CREATED]")
 	fmt.Printf("ID:  %s\n", uuid)
 	fmt.Printf("KEY: %s\n", encodedKey)
 	fmt.Println("\nTo retrieve:")
 	fmt.Printf("snarky get -id %s -key %s\n", uuid, encodedKey)
-
-	// Optional: URL format if you build a web frontend later
-	// fmt.Printf("URL: %s/view#%s:%s\n", serverURL, uuid, encodedKey)
 }
 
 func Get(serverURL, id, keyStr string) {
-	// 1. Download Blob
+	fmt.Println("Connecting to Dead Drop...")
+
+	// 1. Download
 	resp, err := http.Get(fmt.Sprintf("%s/download/%s", serverURL, id))
 	if err != nil {
 		fmt.Printf("Connection error: %v\n", err)
@@ -84,23 +152,50 @@ func Get(serverURL, id, keyStr string) {
 		os.Exit(1)
 	}
 
-	encryptedData, _ := io.ReadAll(resp.Body)
+	// Read content with progress
+	contentLength := resp.ContentLength
+	if contentLength <= 0 {
+		contentLength = 10 * 1024 * 1024 // Fallback estimate
+	}
 
-	// 2. Decode Key
+	reader := &TrackedReader{
+		Reader: resp.Body,
+		Total:  contentLength,
+	}
+	encryptedData, _ := io.ReadAll(reader)
+
+	// 2. Decrypt
+	fmt.Print("Decrypting... ")
 	key, err := base64.URLEncoding.DecodeString(keyStr)
 	if err != nil {
 		fmt.Println("Error: Invalid key format.")
 		os.Exit(1)
 	}
 
-	// 3. Decrypt
-	decryptedData, err := crypto.Decrypt(string(encryptedData), key)
+	decryptedJson, err := crypto.Decrypt(string(encryptedData), key)
 	if err != nil {
-		fmt.Println("Error: Decryption failed. Incorrect key?")
+		fmt.Println("\nError: Decryption failed. Incorrect key?")
 		os.Exit(1)
 	}
 
-	// 4. Output
-	// We write to Stdout so users can redirect: snarky get ... > output.zip
-	os.Stdout.Write(decryptedData)
+	// 3. Unpack Payload
+	var payload SecurePayload
+	err = json.Unmarshal(decryptedJson, &payload)
+	if err != nil {
+		// Fallback for legacy text-only drops
+		fmt.Println("\nWarning: Legacy text format detected.")
+		os.Stdout.Write(decryptedJson)
+		return
+	}
+	fmt.Println("Done.")
+
+	// 4. Save to Disk
+	outputName := "downloaded_" + payload.Filename
+	err = os.WriteFile(outputName, payload.Data, 0644)
+	if err != nil {
+		fmt.Printf("Error writing file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n[SUCCESS] Saved as: %s\n", outputName)
 }
