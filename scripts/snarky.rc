@@ -29,9 +29,10 @@ rcvar="snarky_enable"
 
 load_rc_config $name
 
+# CHANGED: Renamed variable to avoid rc.subr auto-switching user
 : ${snarky_enable:="NO"}
-: ${snarky_user:="nobody"}
-: ${snarky_group:="nobody"}
+: ${snarky_daemon_user:="nobody"}
+: ${snarky_daemon_group:="nobody"}
 : ${snarky_config:="/usr/local/etc/snarky.json"}
 
 pidfile="/var/run/snarky/${name}.pid"
@@ -42,12 +43,14 @@ start_precmd="snarky_precmd"
 
 snarky_precmd()
 {
+    # Ensure directory exists with correct ownership
     if [ ! -d "/var/run/snarky" ]; then
-        install -d -m 0755 -o ${snarky_user} -g ${snarky_group} /var/run/snarky
+        install -d -m 0755 -o ${snarky_daemon_user} -g ${snarky_daemon_group} /var/run/snarky
     fi
 }
 
-# Updates: Removed -f, ensured -u is present
-command_args="-P ${pidfile} -r -u ${snarky_user} ${procname} server -config ${snarky_config}"
+# -f: redirect I/O (prevents "no screen" crash)
+# -u: daemon drops privileges to this user
+command_args="-P ${pidfile} -r -f -u ${snarky_daemon_user} ${procname} server -config ${snarky_config}"
 
 run_rc_command "$1"
