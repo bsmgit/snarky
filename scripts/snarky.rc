@@ -16,7 +16,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see https://www.gnu.org/licenses/
 EOF
 
-
 #!/bin/sh
 
 # PROVIDE: snarky
@@ -30,19 +29,15 @@ rcvar="snarky_enable"
 
 load_rc_config $name
 
-# Defaults
 : ${snarky_enable:="NO"}
 : ${snarky_user:="nobody"}
 : ${snarky_group:="nobody"}
 : ${snarky_config:="/usr/local/etc/snarky.json"}
 
-# Pidfile handling
-# We use a subdirectory because 'nobody' cannot write directly to /var/run
 pidfile="/var/run/snarky/${name}.pid"
 procname="/usr/local/bin/snarky"
 command="/usr/sbin/daemon"
 
-# Ensure the directory for the PID file exists and is owned by the user
 start_precmd="snarky_precmd"
 
 snarky_precmd()
@@ -52,11 +47,7 @@ snarky_precmd()
     fi
 }
 
-# The actual command arguments:
-# -P: location of the PID file
-# -r: restart the process if it crashes
-# -f: run the target command (procname)
-# -u: run the target command as the specific user (explicitly telling daemon to drop privs)
-command_args="-P ${pidfile} -r -u ${snarky_user} -f ${procname} server -config ${snarky_config}"
+# Updates: Removed -f, ensured -u is present
+command_args="-P ${pidfile} -r -u ${snarky_user} ${procname} server -config ${snarky_config}"
 
 run_rc_command "$1"
