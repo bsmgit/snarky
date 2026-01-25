@@ -16,6 +16,11 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+/*
+   Snarky - Zero Knowledge Dead Drop
+   Copyright (C) 2026 Sapadian LLC.
+*/
+
 package client
 
 import (
@@ -39,25 +44,25 @@ type SecurePayload struct {
 
 // TrackedReader tracks progress for the progress bar
 type TrackedReader struct {
-	Reader io.Reader
-	Total  int64
-	Read   int64
+	Reader    io.Reader
+	Total     int64
+	BytesRead int64 // Renamed from 'Read' to avoid collision with Read() method
 }
 
 func (tr *TrackedReader) Read(p []byte) (n int, err error) {
 	n, err = tr.Reader.Read(p)
-	tr.Read += int64(n)
+	tr.BytesRead += int64(n) // Updated reference
 	tr.printProgress()
 	return
 }
 
 func (tr *TrackedReader) printProgress() {
-	percent := float64(tr.Read) / float64(tr.Total) * 100
+	percent := float64(tr.BytesRead) / float64(tr.Total) * 100 // Updated reference
 	barLen := 20
 	filled := int(percent / 100 * float64(barLen))
 	bar := strings.Repeat("=", filled) + strings.Repeat("-", barLen-filled)
 	fmt.Printf("\r\033[36mProgress: [%s] %.2f%%\033[0m", bar, percent)
-	if tr.Read == tr.Total {
+	if tr.BytesRead == tr.Total { // Updated reference
 		fmt.Println() // New line on completion
 	}
 }
@@ -72,7 +77,7 @@ func Send(serverURL, path string) {
 
 	// Hard Client-side limit (Soft check before server hard check)
 	// We use 15MB here to account for JSON+Base64 overhead if server limit is ~10MB
-	if fileInfo.Size() > 10*1024*1024 {
+	if fileInfo.Size() > 15*1024*1024 {
 		fmt.Println("Error: File exceeds 10MB limit.")
 		os.Exit(1)
 	}
