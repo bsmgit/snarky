@@ -36,7 +36,7 @@ load_rc_config $name
 : ${snarky_config:="/usr/local/etc/snarky.json"}
 
 pidfile="/var/run/snarky/${name}.pid"
-procname="/usr/local/bin/snarky"
+procname="/usr/sbin/daemon"
 command="/usr/sbin/daemon"
 
 start_precmd="snarky_precmd"
