@@ -21,10 +21,13 @@
 
 You can download pre-compiled binaries from the [Releases Page](https://sapadian.com/snarky/clients) or build it yourself.
 
-### Build form Source
+### Build from Source
+
+```bash
 git clone https://github.com/sapadianllc/snarky.git
 cd snarky
 go build -o snarky main.go
+```
 
 ---
 
