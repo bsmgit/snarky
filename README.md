@@ -66,6 +66,11 @@ go build -o snarky-bsd main.go
 # Move to bin directory
 sudo mv snarky-bsd /usr/local/bin/snarky
 sudo chmod +x /usr/local/bin/snarky
+
+#create folders for file storage
+sudo mkdir -p /var/db/snarky
+sudo chown -R nobody:nobody /var/db/snarky
+sudo chmod 750 /var/db/snarky
 ```
 
 ## 3. Create the configuration file to control storage and limits.
