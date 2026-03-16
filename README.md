@@ -246,6 +246,6 @@ You are free to use and modify this software.
 
 If you host Snarky as a public service, you must make the source code of your version available to users.
 
-Commercial Hosting: Sapadian offers hosting solutions for Snarky find out more at https://sapadian.com
+
 
 
