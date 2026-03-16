@@ -19,31 +19,15 @@
 
 ## 📦 Client Installation
 
-You can download pre-compiled binaries from the [Releases Page](https://sapadian.com/snarky/clients) or build it yourself.
+You can download pre-compiled binaries from the bin directory in the repo or build them yourself
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/sapadianllc/snarky.git
+git clone https://github.com/bsmgit/snarky
 cd snarky
 go build -o snarky main.go
 ```
-
----
-
-## 🚀 Quick Test (Public Server)
-
-Try Snarky immediately using the free public instance hosted by Sapadian:
-
-```bash
-# Send a file
-./snarky send -file secret.txt -host https://snarkypub.sapadian.com
-
-# Get a file
-./snarky get -id <ID> -key <KEY> -host https://snarkypub.sapadian.com
-```
-
----
 
 # 🖥️ Server Deployment (FreeBSD)
 
